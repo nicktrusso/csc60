@@ -6,6 +6,6 @@
     </ul>
   <li><strong>Lab 4</strong></li>
     <ul>
-      <li>shell v1.0</li>
+      <li>shell v4.0</li>
     </ul>
 </ul>
