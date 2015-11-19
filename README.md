@@ -8,4 +8,9 @@
     <ul>
       <li>shell v4.0</li>
     </ul>
+  <li><strong>Lab 5</strong></li>
+    <ul>
+      <li>shell v5.0</li>
+      <li>Handling background processes, semaphores, pipe</li>
+    </ul>
 </ul>
