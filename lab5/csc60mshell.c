@@ -20,14 +20,6 @@
 #define MAXARGS 20
 
 void process_input(int argc, char **argv) {
-  /* Problem 1: perform system call execvp to execute command     */ 
-  /*            No special operator(s) detected                   */
-  /* Hint: Please be sure to review execvp.c sample program       */
-  /* if (........ == -1) {                                        */  
-  /*  perror("Shell Program");                                    */
-  /*  _exit(-1);                                                  */
-  /* }                                                            */
-  /* Problem 2: Handle redirection operators: < , or  >, or both  */
   if(argc == -1)
   {
 	perror("Shell Program");
@@ -118,11 +110,11 @@ int parseline(char *cmdline, char **argv)
   return count;
 }
 
-//**********************************************************
-//	Check if first argument is a special character
-//	returns 0 if no special characters
-//	returns -1 if first argument is a special char
-//*********************************************************
+/* ----------------------------------------------------------------- */
+/*	Check if first argument is a special character					 */
+/*	returns 0 if no special characters								 */
+/*	returns -1 if first argument is a special char					 */ 
+/* ----------------------------------------------------------------- */
 int checkSpecial(char **argv){
 	char *special[] = {"!","@","#","%","$","^","&","*","(",")"
 			   ,"-","+","=","<",">",",",".","?",":",";"
@@ -141,6 +133,10 @@ int checkSpecial(char **argv){
 	else
 		return 0;
 }		
+
+int isBackgroundJob(char *cmd){
+	return 0;
+}
 
 /* ----------------------------------------------------------------- */
 /*                  The main program starts here                     */
@@ -164,12 +160,6 @@ int main(void)
   if(cmdline[0] == '\n')
 	continue;
   argc = parseline(cmdline, argv);
-  
-  /* Step 1: If user hits enter key without a command, continue to loop again at the beginning */
-  /*         Hint: look up for they keyword "continue" in C */
-  /* Step 1: Call parseline to build argc/argv: argc/argv parameters declared above */ 
-  /* Step 1: Handle build-in command: exit, pwd, or cd - if detect one              */
-  /* Step 1: Else, fork off a process */
 
   /******BUILT IN COMMANDS**************/
   //exit command
@@ -223,6 +213,9 @@ int main(void)
     /* I am parent process */
     if (wait(&status) == -1)
       perror("Shell Program error");
+	if(isBackgoundJob(cmd)){
+		//add to list of background jobs
+	}
     //else
      // printf("Child returned status: %d\n",status);
  }
