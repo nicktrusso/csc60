@@ -19,6 +19,13 @@
 #define MAXLINE 80
 #define MAXARGS 20
 
+struct job_array
+{
+ int process_id; // process id
+ char command[80]; // previous command with & removed.
+ int job_number; // job number
+};
+
 void process_input(int argc, char **argv) {
   if(argc == -1)
   {
@@ -134,9 +141,16 @@ int checkSpecial(char **argv){
 		return 0;
 }		
 
-int isBackgroundJob(char *cmd){
+/* ----------------------------------------------------------------- */
+/*     returns 1 if "&" is the last command, else returns 0          */
+/* ----------------------------------------------------------------- */
+int isBackgroundJob(int argc,char **cmd){
+	//printf("%s\n",argc);
+	//if(strcmp(cmd[argc],"&") == 0)
+		//printf("background command");
 	return 0;
 }
+
 
 /* ----------------------------------------------------------------- */
 /*                  The main program starts here                     */
@@ -147,55 +161,68 @@ int main(void)
  char *argv[MAXARGS];
  int argc;
  int status;
- char *builtIn[] = {"exit","pwd","cd","clear"};
+ int size;
+ char *builtIn[] = {"exit","pwd","cd","clear","jobs"};
  char *cwd;
  char buff[PATH_MAX + 1];
  char *path;
  pid_t pid;
 
  /* Loop forever to wait and process commands */
- while (1) {
+ int i;
+ for(i=0;i<10;++i){
   printf("csc60mshell> ");
   fgets(cmdline, MAXLINE, stdin);
+  //if user presses enter with no arguments, continue
   if(cmdline[0] == '\n')
 	continue;
+  
+  //process number of arguments 
   argc = parseline(cmdline, argv);
-
-  /******BUILT IN COMMANDS**************/
-  //exit command
-  if(strcmp(builtIn[0],argv[0]) == 0)
-  	exit(EXIT_SUCCESS);
-  else{
-  	//pwd command
-  	if(strcmp(builtIn[1],argv[0]) == 0){
-		cwd = getcwd(buff, PATH_MAX + 1);
-		if(cwd != NULL){
+  
+  //see if the first argument is a built in command
+  size = sizeof(builtIn)/sizeof(builtIn[0]);
+  int i;
+  int index = -1;
+  for(i=0;i<size;++i){
+	  if(strcmp(builtIn[i],argv[0]) == 0){
+		  index = i;
+	  }
+  }
+  //built in command found 
+  if(index != -1){
+	  switch(index){
+		case 0:
+			exit(EXIT_SUCCESS);
+			break;
+		case 1:
+			cwd = getcwd(buff, PATH_MAX + 1);
+			if(cwd != NULL)
      			printf("%s\n",cwd);
-			continue;
-		}
-	}
-  	else
-  		//cd
-  		if(strcmp(builtIn[2],argv[0]) == 0){
-			//cd with no argument...cd $HOME
+			break;
+		case 2:
+			//cd with no argument -> cd $HOME
 			if(argc ==  1){
 				char *home;
 				home = getenv("HOME");
 				if(chdir(home) != 0)
-					perror("Error ");	
-				continue;	
+					perror("Error ");
+				break;
 			}
 			path = argv[1];
 			if(chdir(path) != 0)
 				perror("Invalid");
-			continue;	
-		}
-		else
-			if(strcmp(builtIn[3],argv[0]) == 0){
-				system("clear");
-				continue;
-			}
+			break;
+		case 3:
+			system("clear");
+			break;
+		case 4:
+			printf("print background processes from struct\n");
+			break;
+	  }
+	  continue;
   }
+  
   int hasSpecial;
   hasSpecial = checkSpecial(argv);
   if(hasSpecial != 0){
@@ -207,16 +234,15 @@ int main(void)
   if (pid == -1) 
     perror("Shell Program fork error");
   else if (pid == 0)
-    //execute execvp...
+    //child process
     process_input(argc, argv);
-  else 
-    /* I am parent process */
-    if (wait(&status) == -1)
+	else if (wait(&status) == -1)
       perror("Shell Program error");
-	if(isBackgoundJob(cmd)){
-		//add to list of background jobs
+  else if(isBackgroundJob(argc,argv) == 1){
+	  //record in list of background jobs
+	  printf("record as a background job");
+	  }
+	  else
+			wait(&status);
+		}
 	}
-    //else
-     // printf("Child returned status: %d\n",status);
- }
-}
