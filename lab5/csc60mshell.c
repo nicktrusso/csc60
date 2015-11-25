@@ -15,17 +15,19 @@
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
+//#include "tlpi_hdr.h"
 
 #define MAXLINE 80
 #define MAXARGS 20
 
 struct job_array
-{
- int process_id; // process id
- char command[80]; // previous command with & removed.
- int job_number; // job number
-};
-
+	{
+	 int process_id; // process id
+	 char command[80]; // previous command with & removed.
+	 int job_number; // job number
+	};
+	
 void process_input(int argc, char **argv) {
   if(argc == -1)
   {
@@ -145,10 +147,10 @@ int checkSpecial(char **argv){
 /*     returns 1 if "&" is the last command, else returns 0          */
 /* ----------------------------------------------------------------- */
 int isBackgroundJob(int argc,char **cmd){
-	//printf("%s\n",argc);
-	//if(strcmp(cmd[argc],"&") == 0)
-		//printf("background command");
-	return 0;
+	if(strcmp(cmd[argc-1],"&")==0)
+		return 1;
+	else
+		return 0;
 }
 
 
@@ -157,6 +159,7 @@ int isBackgroundJob(int argc,char **cmd){
 /* ----------------------------------------------------------------- */
 int main(void)
 {
+	
  char cmdline[MAXLINE];
  char *argv[MAXARGS];
  int argc;
@@ -167,6 +170,8 @@ int main(void)
  char buff[PATH_MAX + 1];
  char *path;
  pid_t pid;
+ struct job_array jobs[20];
+ int bckgrdProcesses = 0;
 
  /* Loop forever to wait and process commands */
  int i;
@@ -217,7 +222,8 @@ int main(void)
 			system("clear");
 			break;
 		case 4:
-			printf("print background processes from struct\n");
+			for(i=0;i<bckgrdProcesses;++i)
+				printf("[%i] %i\n",(i + 1),jobs[i].process_id);
 			break;
 	  }
 	  continue;
@@ -238,9 +244,10 @@ int main(void)
     process_input(argc, argv);
 	else if (wait(&status) == -1)
       perror("Shell Program error");
-  else if(isBackgroundJob(argc,argv) == 1){
-	  //record in list of background jobs
-	  printf("record as a background job");
+	  else if(isBackgroundJob(argc,argv) == 1){
+		  //record in list of background jobs
+		  jobs[bckgrdProcesses++].process_id = pid;
+		   continue;
 	  }
 	  else
 			wait(&status);
