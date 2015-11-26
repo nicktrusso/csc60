@@ -22,11 +22,11 @@
 #define MAXARGS 20
 
 struct job_array
-	{
-	 int process_id; // process id
-	 char command[80]; // previous command with & removed.
-	 int job_number; // job number
-	};
+{
+	int process_id; // process id
+	char command[80]; // previous command with & removed.
+	int job_number; // job number
+};
 	
 void process_input(int argc, char **argv) {
   if(argc == -1)
@@ -100,9 +100,10 @@ void process_input(int argc, char **argv) {
 	argv[inPos] = NULL;  	
   }
   printf("running: %s\n",argv[0]);
+  setpgid(0,0);
   if(execvp(*argv, argv) < 0)
 	printf("***ERROR: exec failed\n");
-  exit(1);
+  exit(EXIT_SUCCESS);
 }
 
 /* ----------------------------------------------------------------- */
@@ -153,6 +154,29 @@ int isBackgroundJob(int argc,char **cmd){
 		return 0;
 }
 
+/* ----------------------------------------------------------------- */
+/*     removes last string in argv                                   */
+/* ----------------------------------------------------------------- */
+void removeTail(int argc,char **argv){
+	argv[--argc] = NULL;
+}
+
+/* ----------------------------------------------------------------- */
+/*     SIGNAL handler - SIGINT                                       */
+/* ----------------------------------------------------------------- */
+static void signalIntHandler(int sig){
+	printf("signal interrupt\n");
+	return;
+}
+
+/* ----------------------------------------------------------------- */
+/*     SIGNAL handler - SIGCHLD                                       */
+/* ----------------------------------------------------------------- */
+static void signalChldHandler(int sig){
+	printf("child is term/stopped\n");
+	//waitpid(pid,status,options);
+	return;
+}
 
 /* ----------------------------------------------------------------- */
 /*                  The main program starts here                     */
@@ -172,6 +196,22 @@ int main(void)
  pid_t pid;
  struct job_array jobs[20];
  int bckgrdProcesses = 0;
+ int isBckgProc = 0; 
+ 
+ //setup sigaction handler for interrupt
+ struct sigaction handler;
+ handler.sa_handler = signalIntHandler;
+ sigemptyset(&handler.sa_mask);
+ handler.sa_flags = 0;
+ sigaction(SIGINT, &handler, NULL);
+ 
+ //setup sigaction handler for SIGCHLD
+ struct sigaction handler2;
+ handler2.sa_handler = signalChldHandler;
+ sigemptyset(&handler2.sa_mask);
+ handler2.sa_flags = 0;
+ sigaction(SIGCHLD, &handler2, NULL);
+ 
 
  /* Loop forever to wait and process commands */
  int i;
@@ -184,6 +224,14 @@ int main(void)
   
   //process number of arguments 
   argc = parseline(cmdline, argv);
+  
+  isBckgProc = 0;
+  //check if background process
+  if(isBackgroundJob(argc,argv) == 1){
+	  isBckgProc = 1;
+	  removeTail(argc,argv);
+	  --argc;
+  }
   
   //see if the first argument is a built in command
   size = sizeof(builtIn)/sizeof(builtIn[0]);
@@ -229,27 +277,38 @@ int main(void)
 	  continue;
   }
   
+  
   int hasSpecial;
   hasSpecial = checkSpecial(argv);
   if(hasSpecial != 0){
 	printf("***ERROR invalid input\n");
 	continue;
   }
-  
+		  
   pid = fork();
   if (pid == -1) 
     perror("Shell Program fork error");
-  else if (pid == 0)
+  else if (pid == 0){
     //child process
-    process_input(argc, argv);
+	process_input(argc, argv);
+  }
 	else if (wait(&status) == -1)
       perror("Shell Program error");
-	  else if(isBackgroundJob(argc,argv) == 1){
+	  else if(isBckgProc == 1){
 		  //record in list of background jobs
 		  jobs[bckgrdProcesses++].process_id = pid;
-		   continue;
 	  }
-	  else
-			wait(&status);
-		}
+	  else{
+		  //parent process
+		  wait(&status);
+		  if(WIFEXITED(status))
+			  printf("child exited with %d\n",WEXITSTATUS(status));
+		  else if(WIFSIGNALED(status))
+			  printf("child exited due to signal %d\n", WTERMSIG(status));
+		  else if(WIFSTOPPED(status))
+			  printf("child process was stopped by signal %d\n",WIFSTOPPED(status));
+		  
+	  }
 	}
+	
+}
