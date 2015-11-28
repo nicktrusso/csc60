@@ -104,19 +104,10 @@ void process_input(int argc, char **argv) {
   }
   
   //run execvp after all checks have been made
-  //change wait status if background process
-  if(isBckgProc == 1){
-	  printf("running: %s in background\n",argv[0]);
-	  //TODO: dont wait for child to finish
-	  waitpid(0,NULL,WNOHANG);
-	  if(execvp(*argv, argv) < 0)
-		printf("***ERROR: exec failed\n");
-	  
-  }
   printf("running: %s\n",argv[0]);
   if(execvp(*argv, argv) < 0)
 	printf("***ERROR: exec failed\n");
-  //exit(EXIT_SUCCESS);
+  
 }
 
 /* ----------------------------------------------------------------- */
@@ -185,7 +176,16 @@ static void signalChldHandler(int sig){
 		perror("waitpid");
 		exit(1);
 	}
-	if(pid > 0)
+	if(pid > 0){
+		wait(&status);
+		  if(WIFEXITED(status)){
+			  printf("child exited with %d\n",WEXITSTATUS(status));
+		  }
+		  else if(WIFSIGNALED(status))
+			  printf("child exited due to signal %d\n", WTERMSIG(status));
+		  else if(WIFSTOPPED(status))
+			  printf("child process was stopped by signal %d\n",WIFSTOPPED(status));
+	}
 		
 }
 
@@ -298,39 +298,35 @@ int main(void)
 	printf("***ERROR invalid input\n");
 	continue;
   }
-		  
-  pid = fork();
-  if (pid == -1) 
-    perror("Shell Program fork error");
-  else if (pid == 0){
-    //child process
-	setpgid(0,0);
-	process_input(argc, argv);
+	
+	pid = fork();
+	if(pid == -1){
+		perror("fork");
+		exit(1);
 	}
-  
-	else if (wait(&status) == -1)
-      perror("Shell Program error");
-	  else if(isBckgProc == 1){
-		  jobs[bckgrdProcesses].process_id = pid;
+	
+	if(pid == 0){
+		setpgid(0,0);
+		process_input(argc,argv);
+	}
+	else{
+		if(isBckgProc == 0){
+			wait(&status);
+		}
+		else{
+		jobs[bckgrdProcesses].process_id = pid;
 		  int index = 0;
 		  while(argv[index] != NULL){
 			jobs[bckgrdProcesses].command[index] = *argv[index];
 			++index;
 		  }
 		  jobs[bckgrdProcesses].job_number = ++bckgrdProcesses;
-	  }
-	  else{
-		  //parent process
-		  wait(&status);
-		  if(WIFEXITED(status)){
-			  printf("child exited with %d\n",WEXITSTATUS(status));
-		  }
-		  else if(WIFSIGNALED(status))
-			  printf("child exited due to signal %d\n", WTERMSIG(status));
-		  else if(WIFSTOPPED(status))
-			  printf("child process was stopped by signal %d\n",WIFSTOPPED(status));
-		  
-	  }
+		  //not waiting, but now runs the command a bunch of times..?
+		}
 	}
 	
-}
+		
+  
+ }//for loop
+	
+}//main
