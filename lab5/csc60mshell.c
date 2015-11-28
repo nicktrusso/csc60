@@ -16,17 +16,20 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
-//#include "tlpi_hdr.h"
 
 #define MAXLINE 80
 #define MAXARGS 20
-
+int killPid;
+int isBckgProc;
 struct job_array
 {
 	int process_id; // process id
 	char command[80]; // previous command with & removed.
 	int job_number; // job number
 };
+struct job_array jobs[20];
+	
+	
 	
 void process_input(int argc, char **argv) {
   if(argc == -1)
@@ -99,11 +102,21 @@ void process_input(int argc, char **argv) {
 	close(inFileId);  //no longer needed
 	argv[inPos] = NULL;  	
   }
+  
+  //run execvp after all checks have been made
+  //change wait status if background process
+  if(isBckgProc == 1){
+	  printf("running: %s in background\n",argv[0]);
+	  //TODO: dont wait for child to finish
+	  waitpid(0,NULL,WNOHANG);
+	  if(execvp(*argv, argv) < 0)
+		printf("***ERROR: exec failed\n");
+	  
+  }
   printf("running: %s\n",argv[0]);
-  setpgid(0,0);
   if(execvp(*argv, argv) < 0)
 	printf("***ERROR: exec failed\n");
-  exit(EXIT_SUCCESS);
+  //exit(EXIT_SUCCESS);
 }
 
 /* ----------------------------------------------------------------- */
@@ -162,20 +175,18 @@ void removeTail(int argc,char **argv){
 }
 
 /* ----------------------------------------------------------------- */
-/*     SIGNAL handler - SIGINT                                       */
-/* ----------------------------------------------------------------- */
-static void signalIntHandler(int sig){
-	printf("signal interrupt\n");
-	return;
-}
-
-/* ----------------------------------------------------------------- */
 /*     SIGNAL handler - SIGCHLD                                       */
 /* ----------------------------------------------------------------- */
 static void signalChldHandler(int sig){
-	printf("child is term/stopped\n");
-	//waitpid(pid,status,options);
-	return;
+	int status;
+	pid_t pid;
+	
+	if(pid == -1){
+		perror("waitpid");
+		exit(1);
+	}
+	if(pid > 0)
+		
 }
 
 /* ----------------------------------------------------------------- */
@@ -194,13 +205,11 @@ int main(void)
  char buff[PATH_MAX + 1];
  char *path;
  pid_t pid;
- struct job_array jobs[20];
  int bckgrdProcesses = 0;
- int isBckgProc = 0; 
  
  //setup sigaction handler for interrupt
  struct sigaction handler;
- handler.sa_handler = signalIntHandler;
+ handler.sa_handler = SIG_IGN;
  sigemptyset(&handler.sa_mask);
  handler.sa_flags = 0;
  sigaction(SIGINT, &handler, NULL);
@@ -215,7 +224,7 @@ int main(void)
 
  /* Loop forever to wait and process commands */
  int i;
- for(i=0;i<10;++i){
+ for(i=0;i<10;++i){  
   printf("csc60mshell> ");
   fgets(cmdline, MAXLINE, stdin);
   //if user presses enter with no arguments, continue
@@ -225,6 +234,11 @@ int main(void)
   //process number of arguments 
   argc = parseline(cmdline, argv);
   
+  //check if kill command
+  if(strcmp(argv[0],"kill") == 0)
+	  printf("kill command\n");
+  
+  //reset to zero every iteration
   isBckgProc = 0;
   //check if background process
   if(isBackgroundJob(argc,argv) == 1){
@@ -271,7 +285,7 @@ int main(void)
 			break;
 		case 4:
 			for(i=0;i<bckgrdProcesses;++i)
-				printf("[%i] %i\n",(i + 1),jobs[i].process_id);
+				printf("[%i] %i %s\n",jobs[i].job_number,jobs[i].process_id,jobs[i].command);
 			break;
 	  }
 	  continue;
@@ -290,19 +304,27 @@ int main(void)
     perror("Shell Program fork error");
   else if (pid == 0){
     //child process
+	setpgid(0,0);
 	process_input(argc, argv);
-  }
+	}
+  
 	else if (wait(&status) == -1)
       perror("Shell Program error");
 	  else if(isBckgProc == 1){
-		  //record in list of background jobs
-		  jobs[bckgrdProcesses++].process_id = pid;
+		  jobs[bckgrdProcesses].process_id = pid;
+		  int index = 0;
+		  while(argv[index] != NULL){
+			jobs[bckgrdProcesses].command[index] = *argv[index];
+			++index;
+		  }
+		  jobs[bckgrdProcesses].job_number = ++bckgrdProcesses;
 	  }
 	  else{
 		  //parent process
 		  wait(&status);
-		  if(WIFEXITED(status))
+		  if(WIFEXITED(status)){
 			  printf("child exited with %d\n",WEXITSTATUS(status));
+		  }
 		  else if(WIFSIGNALED(status))
 			  printf("child exited due to signal %d\n", WTERMSIG(status));
 		  else if(WIFSTOPPED(status))
