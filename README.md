@@ -1,4 +1,4 @@
-# csc60
+# csc60 - Systems Programming in UNIX
 <ul>
   <li><strong>Lab 2</strong></li>
     <ul>
